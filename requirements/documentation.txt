@@ -1,0 +1,5 @@
+# Specifies requirements used for the Sphinx documentation
+-r production.txt
+sphinx-rtd-theme
+sphinx-autodoc-typehints
+sphinx-autobuild
