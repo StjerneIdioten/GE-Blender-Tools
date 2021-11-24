@@ -1,0 +1,7 @@
+# Specifies requirements used in development
+-r production.txt
+-r test.txt
+-r documentation.txt
+
+tox
+commitizen

@@ -1,0 +1,4 @@
+# Requirements for running pytest
+-r production.txt
+pytest
+pytest-resource-path
