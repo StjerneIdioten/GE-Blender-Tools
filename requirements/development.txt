@@ -5,3 +5,4 @@
 
 tox
 commitizen
+fake-bpy-module-2.93
