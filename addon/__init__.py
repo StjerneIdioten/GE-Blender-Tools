@@ -1,14 +1,15 @@
-# This fixes reloading, by deleting the module references and thus forcing a reload
-if "bpy" in locals():
-    import sys
-    for module in list(sys.modules):
-        if __name__ in module:
-            del sys.modules[module]
-
-import bpy
-
 # Internal version number, which doesn't stricly have to be a three number tuple, like the bl_info one
-__version__ = "0.0.0"
+__version__ = "0.0.0"  # This number will be updated by CI
+
+import importlib
+
+# Version number should only be 0.0.0 when developing, which is the only time where we also want to reload gecore
+if __version__ == "0.0.0":
+    if "gecore" in locals():
+        print("Reloading gecore")
+        importlib.reload(gecore)
+
+import gecore
 
 bl_info = {
     "name": "Giants Engine Tools",
@@ -26,8 +27,10 @@ bl_info = {
 
 
 def register():
+    print(f"Registering {__name__}")
     pass
 
 
 def unregister():
+    print(f"Unregistering {__name__}")
     pass
