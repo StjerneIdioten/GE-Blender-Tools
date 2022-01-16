@@ -5,6 +5,12 @@ Welcome to GE Blender Tools' documentation!
     :maxdepth: -1
     :caption: Documentation:
 
+.. toctree::
+    :maxdepth: -1
+    :caption: For Developers:
+
+    developers
+
 Indices and tables
 ==================
 

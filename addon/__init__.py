@@ -1,15 +1,5 @@
-# Internal version number, which doesn't stricly have to be a three number tuple, like the bl_info one
-__version__ = "0.0.0"  # This number will be updated by CI
-
-import importlib
-
-# Version number should only be 0.0.0 when developing, which is the only time where we also want to reload gecore
-if __version__ == "0.0.0":
-    if "gecore" in locals():
-        print("Reloading gecore")
-        importlib.reload(gecore)
-
-import gecore
+# Internal version number, which doesn't strictly have to be a three number tuple, like the bl_info one
+__version__ = "develop"  # This number will be updated by CI
 
 bl_info = {
     "name": "Giants Engine Tools",
@@ -25,12 +15,32 @@ bl_info = {
     "doc_url": "https://github.com/StjerneIdioten/GE-Blender-Tools"
 }
 
+import sys
+from . import addon_preferences
+from . import dependency_handling
+
 
 def register():
-    print(f"Registering {__name__}")
-    pass
+    print(f"Registering {__package__}")
+    addon_preferences.register()
+    dependency_handling.register()
+    if dependency_handling.dependencies_fulfilled:
+        print(f"Dependencies fulfilled for {__package__}")
+        # Register other classes
+        #for cls in classes:
+        #    bpy.utils.register_class(cls)
 
 
 def unregister():
-    print(f"Unregistering {__name__}")
-    pass
+    print(f"Unregistering {__package__}")
+    if dependency_handling.dependencies_fulfilled:
+        print(f"Dependencies fulfilled for {__package__}")
+        #for cls in classes:
+        #    bpy.utils.unregister_class(cls)
+    dependency_handling.unregister()
+    addon_preferences.unregister()
+    if __version__ == "develop":
+        # Nuke all references to imported submodules when developing, otherwise reloading doesn't update submodules...
+        for module_name in sorted(sys.modules.keys()):
+            if module_name.startswith(__package__):
+                del sys.modules[module_name]
