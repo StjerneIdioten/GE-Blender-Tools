@@ -16,29 +16,23 @@ bl_info = {
 }
 
 import sys
-from . import addon_preferences
-from . import dependency_handling
+from . import preferences
 
 
 def register():
     print(f"Registering {__package__}")
-    addon_preferences.register()
-    dependency_handling.register()
-    if dependency_handling.dependencies_fulfilled:
+    preferences.register()
+    if preferences.dependencies.dependencies_fulfilled():
         print(f"Dependencies fulfilled for {__package__}")
-        # Register other classes
-        #for cls in classes:
-        #    bpy.utils.register_class(cls)
+        preferences.dependencies.register_addon()
 
 
 def unregister():
     print(f"Unregistering {__package__}")
-    if dependency_handling.dependencies_fulfilled:
+    if preferences.dependencies.dependencies_fulfilled():
         print(f"Dependencies fulfilled for {__package__}")
-        #for cls in classes:
-        #    bpy.utils.unregister_class(cls)
-    dependency_handling.unregister()
-    addon_preferences.unregister()
+        preferences.dependencies.unregister_addon()
+    preferences.unregister()
     if __version__ == "develop":
         # Nuke all references to imported submodules when developing, otherwise reloading doesn't update submodules...
         for module_name in sorted(sys.modules.keys()):
