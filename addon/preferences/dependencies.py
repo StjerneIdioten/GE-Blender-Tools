@@ -1,15 +1,18 @@
 import os
-import sys
+from sys import executable as blender_python_bin
 import ctypes
 import subprocess
 import importlib
 from importlib import metadata
 from collections import namedtuple
+import logging
 
 import bpy
 from bpy.props import *
 
-from . import addon_name
+from ..utility import addon_name
+
+logger = logging.getLogger(__name__)
 
 Dependency = namedtuple('Dependency', ['module', 'package', 'name', 'version'])
 dependencies = (Dependency(module='gecore', package='ge-core', name=None, version='0.1.0'),)
@@ -45,9 +48,11 @@ class GE_TOOLS_OT_install_dependency(bpy.types.Operator):
                           global_name=dependency.name)
         except ImportError as err:
             self.report({"ERROR"}, str(err))
+            logger.exception(err)
             return {"CANCELLED"}
         except subprocess.CalledProcessError as err:
             self.report({"ERROR"}, str(err))
+            logger.exception(err)
             # TODO: Figure out a way to handle this more graciously [WinError 5], it happens despite of admin rights
 
         if dependencies_fulfilled():
@@ -72,7 +77,7 @@ class GE_TOOLS_OT_backup_packages(bpy.types.Operator):
             environ_copy["PYTHONNOUSERSITE"] = "1"
             path = bpy.context.preferences.addons[addon_name].preferences.dependencies.package_backup_file
             with open(path, 'w') as file_:
-                subprocess.run([sys.executable, "-m", "pip", "freeze", "--exclude-editable"], stdout=file_,
+                subprocess.run([blender_python_bin, "-m", "pip", "freeze", "--exclude-editable"], stdout=file_,
                                check=True, env=environ_copy)
         except subprocess.CalledProcessError as err:
             self.report({"ERROR"}, str(err))
@@ -96,7 +101,7 @@ class GE_TOOLS_OT_restore_packages(bpy.types.Operator):
             environ_copy = dict(os.environ)
             environ_copy["PYTHONNOUSERSITE"] = "1"
             path = bpy.context.preferences.addons[addon_name].preferences.dependencies.package_backup_file
-            subprocess.run([sys.executable, "-m", "pip", "install", "-r", path],
+            subprocess.run([blender_python_bin, "-m", "pip", "install", "-r", path],
                            check=True, env=environ_copy)
         except (subprocess.CalledProcessError, ImportError) as err:
             # TODO: Check if the file is missing and give a warning about it
@@ -176,11 +181,11 @@ def unregister():
 
 def register_addon():
     """Registers the rest of the addon once dependencies are fulfilled"""
-    print("Registering Addon")
+    logger.info("Registering Dependent Parts of Addon")
 
 
 def unregister_addon():
-    print("Unregistering Addon")
+    logger.info("Unregistering Dependent Parts of Addon")
 
 
 def is_admin() -> bool:
@@ -198,7 +203,7 @@ def dependency_installed_version(dependency):
         version = metadata.version(dependency.package)
     except metadata.PackageNotFoundError:
         pass
-
+    logger.debug(f"Dependency '{dependency.package}' is installed with version: {version}")
     return version
 
 
@@ -209,7 +214,7 @@ def compare_versions(version1, version2):
 def import_module(module_name, global_name=None):
     if global_name is None:
         global_name = module_name
-
+    logger.debug(f"Importing module: {global_name}")
     if global_name in globals():
         importlib.reload(globals()[global_name])
     else:
@@ -220,7 +225,7 @@ def install_dependency(dependency, upgrade=False):
     environ_copy = dict(os.environ)
     environ_copy["PYTHONNOUSERSITE"] = "1"
 
-    subprocess.run([sys.executable, "-m", "pip", "install", f"{dependency.package}=={dependency.version}"],
+    subprocess.run([blender_python_bin, "-m", "pip", "install", f"{dependency.package}=={dependency.version}"],
                    check=True, env=environ_copy)
 
 

@@ -1,8 +1,10 @@
+import logging
 import bpy
 from bpy.props import *
-from .. import __package__ as addon_name
-
 from . import (dependencies, debug)
+from ..utility import addon_name
+
+logger = logging.getLogger(__package__)
 
 
 class GE_TOOLS_preferences(bpy.types.AddonPreferences):
@@ -32,12 +34,20 @@ class GE_TOOLS_preferences(bpy.types.AddonPreferences):
 
 
 def register():
+    logger.info("Registering Preferences")
     debug.register()
     dependencies.register()
     bpy.utils.register_class(GE_TOOLS_preferences)
+    # The setter for debug_level updates the log level in the logging module, but when Blender loads the setter isn't
+    # called. So we have to set the level ourselves the first time.
+
+    for handler in logging.getLogger(addon_name).handlers:
+        if handler.name == 'Blender Console':
+            handler.setLevel(bpy.context.preferences.addons[addon_name].preferences.debug.debug_level)
 
 
 def unregister():
+    logger.info("Unregistering Preferences")
     bpy.utils.unregister_class(GE_TOOLS_preferences)
     dependencies.unregister()
     debug.unregister()
