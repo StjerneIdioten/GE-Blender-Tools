@@ -1,8 +1,6 @@
 import os
 from sys import executable as blender_python_bin
-import ctypes
 import subprocess
-import importlib
 from importlib import metadata
 from collections import namedtuple
 import logging
@@ -10,12 +8,13 @@ import logging
 import bpy
 from bpy.props import *
 
-from ..utility import addon_name
+from ..utility import (addon_name, is_admin, compare_versions, import_module)
 
 logger = logging.getLogger(__name__)
 
 Dependency = namedtuple('Dependency', ['module', 'package', 'name', 'version'])
-dependencies = (Dependency(module='gecore', package='ge-core', name=None, version='0.1.0'),)
+dependencies = (Dependency(module='gecore', package='ge-core', name=None, version='0.1.0'),
+                Dependency(module='colorama', package='colorama', name=None, version='0.4.4'))
 
 
 class Properties(bpy.types.PropertyGroup):
@@ -188,14 +187,6 @@ def unregister_addon():
     logger.info("Unregistering Dependent Parts of Addon")
 
 
-def is_admin() -> bool:
-    """Checks if user has administrative rights, regardless of OS used"""
-    try:
-        return os.getuid() == 0
-    except AttributeError:
-        return ctypes.windll.shell32.IsUserAnAdmin() == 1
-
-
 def dependency_installed_version(dependency):
     version = "None"
     # Try if module version can be found through dist-info or egg-info
@@ -203,22 +194,7 @@ def dependency_installed_version(dependency):
         version = metadata.version(dependency.package)
     except metadata.PackageNotFoundError:
         pass
-    logger.debug(f"Dependency '{dependency.package}' is installed with version: {version}")
     return version
-
-
-def compare_versions(version1, version2):
-    return True if version1 == version2 or version1 == '0.0.0' else False
-
-
-def import_module(module_name, global_name=None):
-    if global_name is None:
-        global_name = module_name
-    logger.debug(f"Importing module: {global_name}")
-    if global_name in globals():
-        importlib.reload(globals()[global_name])
-    else:
-        globals()[global_name] = importlib.import_module(module_name)
 
 
 def install_dependency(dependency, upgrade=False):

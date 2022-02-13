@@ -56,6 +56,11 @@ def register():
             os.system("cls")
         else:
             os.system("clear")
+    logger.debug("This is a DEBUG message!")
+    logger.info("This is an INFO message!")
+    logger.warning("This is a WARNING!")
+    logger.error("This is an ERROR!")
+    logger.critical("This is CRITICAL!")
 
 
 def unregister():
