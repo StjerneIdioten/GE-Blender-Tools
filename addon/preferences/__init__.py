@@ -38,12 +38,15 @@ def register():
     debug.register()
     dependencies.register()
     bpy.utils.register_class(GE_TOOLS_preferences)
-    # The setter for debug_level updates the log level in the logging module, but when Blender loads the setter isn't
-    # called. So we have to set the level ourselves the first time.
 
-    for handler in logging.getLogger(addon_name).handlers:
-        if handler.name == 'Blender Console':
-            handler.setLevel(bpy.context.preferences.addons[addon_name].preferences.debug.debug_level)
+    # TODO: Investigate if there is a way to call a method when a property is loaded
+    # When a preference get's loaded it's setter is not called, meaning that the code which keeps it in sync with
+    # external modules is not called. By setting it to the same value the code is called and the external module is
+    # set with the proper value. There might be a better way to do this, but it works for now!
+    bpy.context.preferences.addons[addon_name].preferences.debug.debug_level = \
+        bpy.context.preferences.addons[addon_name].preferences.debug.debug_level
+    bpy.context.preferences.addons[addon_name].preferences.debug.console_colour = \
+        bpy.context.preferences.addons[addon_name].preferences.debug.console_colour
 
 
 def unregister():

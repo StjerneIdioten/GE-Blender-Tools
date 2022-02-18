@@ -1,8 +1,6 @@
 import os
 from sys import executable as blender_python_bin
-import ctypes
 import subprocess
-import importlib
 from importlib import metadata
 from collections import namedtuple
 import logging
@@ -10,12 +8,14 @@ import logging
 import bpy
 from bpy.props import *
 
-from ..utility import addon_name
+from ..utility import (addon_name, is_admin, compare_versions, import_module)
 
 logger = logging.getLogger(__name__)
 
-Dependency = namedtuple('Dependency', ['module', 'package', 'name', 'version'])
-dependencies = (Dependency(module='gecore', package='ge-core', name=None, version='0.1.0'),)
+Dependency = namedtuple('Dependency', ['module', 'package', 'name', 'version', 'optional'])
+dependencies = (Dependency(module='gecore', package='ge-core', name=None, version='0.1.0', optional=False),
+                Dependency(module='colorama', package='colorama', name=None, version='0.4.4', optional=True),
+                )
 
 
 class Properties(bpy.types.PropertyGroup):
@@ -38,12 +38,12 @@ class GE_TOOLS_OT_install_dependency(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return not dependencies_fulfilled()
+        return True
 
     def execute(self, context):
         dependency = dependencies[self.dependency_index]
         try:
-            install_dependency(dependency, self.upgrade)
+            install_dependency(dependency)
             import_module(module_name=dependency.module,
                           global_name=dependency.name)
         except ImportError as err:
@@ -57,6 +57,34 @@ class GE_TOOLS_OT_install_dependency(bpy.types.Operator):
 
         if dependencies_fulfilled():
             register_addon()
+
+        return {"FINISHED"}
+
+
+class GE_TOOLS_OT_uninstall_dependency(bpy.types.Operator):
+    bl_idname = "getools.uninstall_dependency"
+    bl_label = "Uninstall dependency"
+    bl_description = "Uninstall package. It is advisable to save a backup of the currently " \
+                     "installed packages beforehand, in case this operation breaks something in other addons!"
+    bl_options = {"REGISTER", "INTERNAL"}
+
+    dependency_index: IntProperty(default=0)
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        dependency = dependencies[self.dependency_index]
+        try:
+            uninstall_dependency(dependency)
+        except subprocess.CalledProcessError as err:
+            self.report({"ERROR"}, str(err))
+            logger.exception(err)
+            # TODO: Figure out a way to handle this more graciously [WinError 5], it happens despite of admin rights
+
+        if not dependencies_fulfilled():
+            unregister_addon()
 
         return {"FINISHED"}
 
@@ -133,36 +161,45 @@ def draw(preferences, context, layout):
     dep_box = layout.box()
     row = dep_box.row()
     row.label(text="Package")
-    row.label(text="Required Version")
-    row.label(text='Installed Version')
+    row.label(text="Version Required ")
+    row.label(text='Version Installed ')
+    row.label(text='Status')
     row.label(text='')
 
     for idx, dep in enumerate(deps):
         version_installed = dependency_installed_version(dep)
+        status_icon = "CANCEL"
         if version_installed == "None":
             op_text = 'Install'
         elif version_installed != '0.0.0' and version_installed != dep.version:
             op_text = 'Upgrade'
+            status_icon = "SORT_DESC"
         else:
-            op_text = 'Installed'
+            op_text = 'Uninstall'
+            status_icon = "CHECKMARK"
         row = dep_box.row()
         row.label(text=dep.package)
         row.label(text=dep.version)
-        if op_text != 'Installed':
+        if op_text != 'Uninstall' and not dep.optional:
             row.alert = True
         row.label(text=version_installed)
         row.alert = False
-        op_icon = "ERROR"
-        if op_text == 'Installed' or not is_admin:
+        if not is_admin:
             row.enabled = False
-        if op_text == 'Installed':
-            op_icon = "CHECKMARK"
-        op = row.operator(GE_TOOLS_OT_install_dependency.bl_idname, text=op_text, icon=op_icon)
+        if op_text == 'Install' and dep.optional:
+            row.label(text='Optional')
+        else:
+            row.label(text=' ', icon=status_icon)
+        if op_text == 'Uninstall':
+            op = row.operator(GE_TOOLS_OT_uninstall_dependency.bl_idname, text=op_text)
+        else:
+            op = row.operator(GE_TOOLS_OT_install_dependency.bl_idname, text=op_text)
         op.dependency_index = idx
 
 
 classes = (
     GE_TOOLS_OT_install_dependency,
+    GE_TOOLS_OT_uninstall_dependency,
     GE_TOOLS_OT_backup_packages,
     GE_TOOLS_OT_restore_packages,
     Properties
@@ -188,14 +225,6 @@ def unregister_addon():
     logger.info("Unregistering Dependent Parts of Addon")
 
 
-def is_admin() -> bool:
-    """Checks if user has administrative rights, regardless of OS used"""
-    try:
-        return os.getuid() == 0
-    except AttributeError:
-        return ctypes.windll.shell32.IsUserAnAdmin() == 1
-
-
 def dependency_installed_version(dependency):
     version = "None"
     # Try if module version can be found through dist-info or egg-info
@@ -203,30 +232,19 @@ def dependency_installed_version(dependency):
         version = metadata.version(dependency.package)
     except metadata.PackageNotFoundError:
         pass
-    logger.debug(f"Dependency '{dependency.package}' is installed with version: {version}")
     return version
 
 
-def compare_versions(version1, version2):
-    return True if version1 == version2 or version1 == '0.0.0' else False
-
-
-def import_module(module_name, global_name=None):
-    if global_name is None:
-        global_name = module_name
-    logger.debug(f"Importing module: {global_name}")
-    if global_name in globals():
-        importlib.reload(globals()[global_name])
-    else:
-        globals()[global_name] = importlib.import_module(module_name)
-
-
-def install_dependency(dependency, upgrade=False):
+def install_dependency(dependency):
     environ_copy = dict(os.environ)
     environ_copy["PYTHONNOUSERSITE"] = "1"
 
     subprocess.run([blender_python_bin, "-m", "pip", "install", f"{dependency.package}=={dependency.version}"],
                    check=True, env=environ_copy)
+
+
+def uninstall_dependency(dependency):
+    subprocess.run([blender_python_bin, "-m", "pip", "uninstall", "-y", dependency.package])
 
 
 def dependencies_fulfilled():
